@@ -1,7 +1,7 @@
 # ArcSight Connector Prometheus Exporter
 
 A lightweight, zero-dependency Python exporter that scrapes metrics from
-ArcSight SmartConnectors installed under `/opt/arcsight/connectors/<name>/`
+ArcSight SmartConnectors installed under `/opt/arcsight_Connectors/<name>/`
 and exposes them in Prometheus text format on `:9116/metrics`.
 
 ---
@@ -54,7 +54,7 @@ sudo chmod +x /opt/arcsight_exporter/arcsight_exporter.py
 
 # 2. Test it manually first
 sudo python3 /opt/arcsight_exporter/arcsight_exporter.py \
-    --base-dir /opt/arcsight/connectors \
+    --base-dir /opt/arcsight_Connectors \
     --port 9116 \
     --log-level DEBUG
 
