@@ -1,0 +1,124 @@
+# arcsight_alerts.yml
+# Place in /etc/prometheus/rules/ and add to prometheus.yml:
+#   rule_files:
+#     - /etc/prometheus/rules/arcsight_alerts.yml
+
+groups:
+  - name: arcsight_connectors
+    interval: 30s
+    rules:
+
+      # ── Connector Down ───────────────────────────────────────────────────────
+      - alert: ArcSightConnectorDown
+        expr: arcsight_connector_up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "ArcSight connector '{{ $labels.connector }}' is DOWN"
+          description: >
+            Connector {{ $labels.connector }} (type={{ $labels.type }})
+            has been down for more than 2 minutes. Check the process and logs.
+
+      # ── EPS Drop (current EPS < 10% of average) ───────────────────────────
+      - alert: ArcSightConnectorEPSDrop
+        expr: |
+          (
+            arcsight_connector_eps_current
+            / on(connector) arcsight_connector_eps_average
+          ) < 0.10
+          and arcsight_connector_eps_average > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ArcSight connector '{{ $labels.connector }}' EPS dropped >90%"
+          description: >
+            Current EPS is {{ $value | humanize }}x of average.
+            Possible source silence, parsing issue, or network drop.
+
+      # ── High Queue Utilization ────────────────────────────────────────────
+      - alert: ArcSightConnectorQueueHigh
+        expr: arcsight_connector_queue_utilization_ratio > 0.80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ArcSight connector '{{ $labels.connector }}' queue >80% full"
+          description: >
+            Queue utilization is {{ $value | humanizePercentage }}.
+            Events may start dropping if destination is slow or down.
+
+      # ── Queue Critical ────────────────────────────────────────────────────
+      - alert: ArcSightConnectorQueueCritical
+        expr: arcsight_connector_queue_utilization_ratio > 0.95
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "ArcSight connector '{{ $labels.connector }}' queue CRITICAL (>95%)"
+          description: >
+            Queue at {{ $value | humanizePercentage }}. Event loss imminent.
+            Check SIEM destination connectivity immediately.
+
+      # ── Cache Drops ───────────────────────────────────────────────────────
+      - alert: ArcSightConnectorCacheDropping
+        expr: arcsight_connector_cache_drops_total > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ArcSight connector '{{ $labels.connector }}' is DROPPING events"
+          description: >
+            {{ $value }} events dropped from cache in the last scrape window.
+            Destination may be unreachable or queue exhausted.
+
+      # ── Disconnected from Destination ─────────────────────────────────────
+      - alert: ArcSightConnectorDisconnected
+        expr: arcsight_connector_connected == 0
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "ArcSight connector '{{ $labels.connector }}' disconnected from destination"
+          description: >
+            Connector {{ $labels.connector }} is reporting disconnected status.
+            ESM/Logger may be unreachable.
+
+      # ── JVM Heap High ─────────────────────────────────────────────────────
+      - alert: ArcSightConnectorHeapHigh
+        expr: arcsight_connector_jvm_heap_utilization_ratio > 0.85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ArcSight connector '{{ $labels.connector }}' JVM heap >85%"
+          description: >
+            Heap at {{ $value | humanizePercentage }}.
+            Risk of OutOfMemoryError and connector crash. Consider increasing -Xmx.
+
+      # ── Connector Log Errors Spiking ──────────────────────────────────────
+      - alert: ArcSightConnectorErrorSpike
+        expr: arcsight_connector_log_errors_total > 50
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ArcSight connector '{{ $labels.connector }}' has >50 errors in log window"
+          description: >
+            {{ $value }} ERROR lines in the last {{ $labels.connector }} log tail.
+            Review agent.log for root cause.
+
+      # ── Stale / Silent Connector ──────────────────────────────────────────
+      - alert: ArcSightConnectorSilent
+        expr: |
+          (time() - arcsight_connector_last_event_timestamp_seconds) > 600
+          and arcsight_connector_up == 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ArcSight connector '{{ $labels.connector }}' has been silent >10min"
+          description: >
+            Process is running but no log activity detected in 10+ minutes.
+            Check if the event source is alive and sending data.
